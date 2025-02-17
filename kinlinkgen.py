@@ -95,7 +95,7 @@ async def handle_file(update, context):
         )
         
         advice_message = (
-            "Убедитесь, что путь к ffmpeg указан правильно, только английскими буквами и без пробелов.\n"
+            " ⚠️ Убедитесь, что путь к ffmpeg указан правильно, только английскими буквами и без пробелов.\n"
             "Если путь отличается от /path/to/ffmpeg, измените его на свой."
         )
         await update.message.reply_text(advice_message)
