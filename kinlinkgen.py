@@ -1,67 +1,57 @@
-import json
 import os
-from time import sleep
-from telegram import Bot, Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+from urllib.parse import urlparse
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-# Токен вашего бота
-BOT_TOKEN = "8178971092:AAHabpY9ZrdJ85T9CO96TMDO_G7zfMxQpIg"
+# Получаем токен из переменных окружения
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+PORT = int(os.getenv("PORT", "8080"))
 
-# Путь для временного сохранения файлов
-TEMP_DIR = "./temp"
-if not os.path.exists(TEMP_DIR):
-    os.makedirs(TEMP_DIR)
+application = Application.builder().token(BOT_TOKEN).build()
 
-# Настройка логирования
-import logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Обработка команды /start
-async def start(update: Update, context: CallbackContext):
+# Обработчик команды /start
+async def start(update, context):
     await update.message.reply_text(
-        "Привет! Отправьте мне файл .json, и я выдам ссылку для скачивания видео.\n"
-        "Скопируйте полученную команду и используйте её с kinescope-dl.py."
+        "Привет! Отправьте мне файл .json, и я выдам ссылку для скачивания видео."
     )
 
-# Обработка полученного файла
-async def handle_file(update: Update, context: CallbackContext):
+# Обработчик JSON-файла
+async def handle_file(update, context):
     try:
-        # Получаем файл от пользователя
         file = await context.bot.get_file(update.message.document.file_id)
-        file_path = os.path.join(TEMP_DIR, update.message.document.file_name)
+        file_path = f"./temp/{update.message.document.file_name}"
+        os.makedirs("./temp", exist_ok=True)
         await file.download_to_drive(file_path)
-        logger.info(f"File received from user {update.effective_user.id}: {file_path}")
 
-        # Читаем содержимое файла
         with open(file_path, 'r') as f:
             data = json.load(f)
 
-        # Извлекаем данные из JSON
-        url = data.get("url", "").strip()
-        referer = data.get("referrer", "").strip()
-
-        if not url:
-            await update.message.reply_text("Ошибка: не найден ключ 'url' или он пустой.")
+        playlist_data = data.get("rawOptions", {}).get("playlist", [])
+        if not playlist_data:
+            await update.message.reply_text("Ошибка: в файле не найден ключ 'rawOptions.playlist'.")
             return
 
-        # Если реферер пустой, используем URL
+        video_url = playlist_data[0].get("sources", {}).get("hls", {}).get("src")
+        referer = data.get("referrer") or data.get("url")
+
+        if not video_url:
+            await update.message.reply_text("Ошибка: не найдена ссылка на видео.")
+            return
+
         if not referer:
-            referer = url
+            parsed_url = urlparse(video_url)
+            referer = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-        # Определяем путь к ffmpeg.exe
-        ffmpeg_path = r"C:\ffmpeg\bin\ffmpeg.exe"  # Замените на свой путь
+        # Формируем короткую ссылку
+        parsed_video_url = urlparse(video_url)
+        short_video_url = f"{parsed_url.scheme}://{parsed_video_url.netloc}/{parsed_video_url.path.split('/')[2]}"
 
-        # Генерируем имя выходного файла
-        output_file = "output.mp4"
-
-        # Формируем команду для kinescope-dl.py
+        # Генерируем команду
         command = (
             f'python kinescope-dl.py -r "{referer}" '
-            f'--ffmpeg-path "{ffmpeg_path}" "{url}" "{output_file}"'
+            f'--ffmpeg-path "/path/to/ffmpeg" "{short_video_url}" "output.mp4"'
         )
 
-        # Отправляем шуточное сообщение
+        # Шуточное сообщение
         warning_message = (
             "<b>⚠️ Внимание! ⚠️</b>\n"
             "Спасибо за предоставленные данные...\n"
@@ -70,50 +60,41 @@ async def handle_file(update: Update, context: CallbackContext):
         )
         await update.message.reply_html(warning_message)
 
-        # Ждём 5 секунд
-        sleep(5)
+        import time
+        time.sleep(5)
 
-        # Отправляем сообщение о том, что это была шутка
+        # Реальная команда
         joke_message = (
             "Ха-ха-ха! 😂 Это была шутка! Не беспокойтесь, никто ничего не оформлял.\n\n"
             "Вот ваша команда для скачивания видео:"
         )
         await update.message.reply_text(joke_message)
 
-        # Отправляем готовую команду
         await update.message.reply_text(
             f"<code>{command}</code>",
             parse_mode="HTML"
         )
 
-        # Отправляем совет по пути к ffmpeg
         advice_message = (
-            "⚠️ <b>Важно:</b> Убедитесь, что путь к файлу ffmpeg.exe указан правильно, только английскими буквами и без пробелов.\n"
-            "Если путь отличается от C:\\\\ffmpeg\\\\bin\\\\ffmpeg.exe, измените его на свой.\n\n"
-            "Например: --ffmpeg-path \"D:\\tools\\ffmpeg\\bin\\ffmpeg.exe\""
+            "Убедитесь, что путь к ffmpeg указан правильно, только английскими буквами и без пробелов.\n"
+            "Если путь отличается от /path/to/ffmpeg, измените его на свой."
         )
-        await update.message.reply_html(advice_message)
+        await update.message.reply_text(advice_message)
 
     except Exception as e:
-        logger.error(f"Error processing file for user {update.effective_user.id}: {str(e)}")
         await update.message.reply_text(f"Произошла ошибка: {str(e)}")
-
     finally:
-        # Удаляем временный файл
         if os.path.exists(file_path):
             os.remove(file_path)
 
-# Основная функция
-def main():
-    application = Application.builder().token(BOT_TOKEN).build()
+# Запуск через webhook
+WEBHOOK_URL = f"https://{os.getenv('REPL_SLUG')}.{os.getenv('REPL_OWNER')}.repl.co/{BOT_TOKEN}"
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
 
-    # Добавляем обработчики
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
-
-    # Запускаем бота
-    print("Бот запущен...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-if __name__ == "__main__":
-    main()
+application.run_webhook(
+    listen="0.0.0.0",
+    port=PORT,
+    url_path=BOT_TOKEN,
+    webhook_url=WEBHOOK_URL
+)
