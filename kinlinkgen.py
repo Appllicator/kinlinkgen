@@ -1,6 +1,7 @@
 import os
 from urllib.parse import urlparse
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
+import json  # Добавьте эту строку
 
 # Получаем токен из переменных окружения
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -27,7 +28,7 @@ async def handle_file(update, context):
         
         # Загрузка JSON-данных
         with open(file_path, 'r') as f:
-            data = json.load(f)
+            data = json.load(f)  # Модуль json должен быть импортирован
         
         playlist_data = data.get("rawOptions", {}).get("playlist", [])
         if not playlist_data:
@@ -100,6 +101,6 @@ application.add_handler(MessageHandler(filters.Document.MimeType("application/js
 application.run_webhook(
     listen="0.0.0.0",
     port=8443,
-    url_path=BOT_TOKEN,  # Используем BOT_TOKEN вместо TOKEN
+    url_path=BOT_TOKEN,
     webhook_url=WEBHOOK_URL
 )
