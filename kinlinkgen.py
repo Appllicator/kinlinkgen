@@ -1,7 +1,8 @@
 import os
 from urllib.parse import urlparse
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-import json  # Для работы с JSON-файлами
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+import json
 
 # Получаем токен из переменных окружения
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -14,9 +15,29 @@ application = Application.builder().token(BOT_TOKEN).build()
 
 # Обработчик команды /start
 async def start(update, context):
-    await update.message.reply_text(
-        "Привет! Отправьте мне файл .json, и я выдам ссылку для скачивания видео."
+    # Текст приветствия
+    welcome_message = (
+        "Привет! Отправьте мне файл .json, и я выдам корректную ссылку для скачивания видео "
+        "с помощью скрипта kinescope-dl."
     )
+    
+    # Текст с благодарностью
+    thanks_message = (
+        "❤️ Можете отблагодарить отправив небольшую благодарность 'НА ШОКОЛАДКУ' ❤️"
+    )
+    
+    # Кнопка для YooMoney
+    keyboard = [
+        [InlineKeyboardButton(
+            "Поддержать проект",
+            url="https://yoomoney.ru/quickpay/fundraise/button?billNumber=18FCROFC1QD.250217&"
+        )]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Отправляем сообщение с кнопкой
+    await update.message.reply_text(welcome_message)
+    await update.message.reply_text(thanks_message, reply_markup=reply_markup)
 
 # Обработчик JSON-файла
 async def handle_file(update, context):
@@ -32,31 +53,21 @@ async def handle_file(update, context):
             data = json.load(f)
         
         # Извлечение данных из JSON
-        playlist_data = data.get("rawOptions", {}).get("playlist", [])
-        if not playlist_data:
-            await update.message.reply_text("Ошибка: в файле не найден ключ 'rawOptions.playlist'.")
-            return
-        
-        video_url = playlist_data[0].get("sources", {}).get("hls", {}).get("src")
-        referer = data.get("referrer") or data.get("url")
+        video_url = data.get("url")
+        referer = data.get("referrer")
         
         if not video_url:
-            await update.message.reply_text("Ошибка: не найдена ссылка на видео.")
+            await update.message.reply_text("Ошибка: в файле не найден ключ 'url'.")
             return
         
-        # Определяем parsed_url здесь, чтобы она была доступна позже
-        parsed_url = urlparse(video_url)
-        
         if not referer:
-            referer = f"{parsed_url.scheme}://{parsed_url.netloc}"
-        
-        # Формируем короткую ссылку
-        short_video_url = f"{parsed_url.scheme}://{parsed_url.netloc}/{parsed_url.path.split('/')[2]}"
+            await update.message.reply_text("Ошибка: в файле не найден ключ 'referrer'.")
+            return
         
         # Генерируем команду
         command = (
             f'python kinescope-dl.py -r "{referer}" '
-            f'--ffmpeg-path "/path/to/ffmpeg" "{short_video_url}" "output.mp4"'
+            f'--ffmpeg-path "/path/to/ffmpeg" "{video_url}" "output.mp4"'
         )
         
         # Шуточное сообщение
