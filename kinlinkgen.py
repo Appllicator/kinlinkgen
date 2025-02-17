@@ -1,7 +1,7 @@
 import os
 from urllib.parse import urlparse
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-import json  # Добавьте эту строку
+import json  # Для работы с JSON-файлами
 
 # Получаем токен из переменных окружения
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -21,15 +21,17 @@ async def start(update, context):
 # Обработчик JSON-файла
 async def handle_file(update, context):
     try:
+        # Получаем загруженный файл
         file = await context.bot.get_file(update.message.document.file_id)
         file_path = f"./temp/{update.message.document.file_name}"
-        os.makedirs("./temp", exist_ok=True)
-        await file.download_to_drive(file_path)
+        os.makedirs("./temp", exist_ok=True)  # Создаем временную папку, если её нет
+        await file.download_to_drive(file_path)  # Скачиваем файл
         
         # Загрузка JSON-данных
         with open(file_path, 'r') as f:
-            data = json.load(f)  # Модуль json должен быть импортирован
+            data = json.load(f)
         
+        # Извлечение данных из JSON
         playlist_data = data.get("rawOptions", {}).get("playlist", [])
         if not playlist_data:
             await update.message.reply_text("Ошибка: в файле не найден ключ 'rawOptions.playlist'.")
@@ -42,13 +44,14 @@ async def handle_file(update, context):
             await update.message.reply_text("Ошибка: не найдена ссылка на видео.")
             return
         
+        # Определяем parsed_url здесь, чтобы она была доступна позже
+        parsed_url = urlparse(video_url)
+        
         if not referer:
-            parsed_url = urlparse(video_url)
             referer = f"{parsed_url.scheme}://{parsed_url.netloc}"
         
         # Формируем короткую ссылку
-        parsed_video_url = urlparse(video_url)
-        short_video_url = f"{parsed_url.scheme}://{parsed_video_url.netloc}/{parsed_video_url.path.split('/')[2]}"
+        short_video_url = f"{parsed_url.scheme}://{parsed_url.netloc}/{parsed_url.path.split('/')[2]}"
         
         # Генерируем команду
         command = (
@@ -89,15 +92,18 @@ async def handle_file(update, context):
         await update.message.reply_text(f"Произошла ошибка: {str(e)}")
     
     finally:
+        # Удаляем временный файл
         if os.path.exists(file_path):
             os.remove(file_path)
 
 # Настройка вебхука
 WEBHOOK_URL = f"https://tg-kinescope-bot.onrender.com/{BOT_TOKEN}"
 
+# Добавляем обработчики
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
 
+# Запуск бота через вебхук
 application.run_webhook(
     listen="0.0.0.0",
     port=8443,
