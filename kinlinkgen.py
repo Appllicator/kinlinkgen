@@ -94,7 +94,7 @@ application.add_handler(MessageHandler(filters.Document.MimeType("application/js
 
 application.run_webhook(
     listen="0.0.0.0",
-    port=PORT,
-    url_path=BOT_TOKEN,
-    webhook_url=WEBHOOK_URL
+    port=8443,
+    url_path=TOKEN,
+    webhook_url=f"https://tg-kinescope-bot.onrender.com/{TOKEN}"
 )
