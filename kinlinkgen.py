@@ -23,14 +23,14 @@ async def start(update, context):
     
     # Текст с благодарностью
     thanks_message = (
-        "❤️ Можете отблагодарить отправив небольшую благодарность 'НА ШОКОЛАДКУ' ❤️"
+        "Можете отблагодарить отправив небольшую сумму \n <b> ❤️ 'НА ШОКОЛАДКУ' ❤️ </b>"
     )
     
     # Кнопка для YooMoney
     keyboard = [
         [InlineKeyboardButton(
             "Поддержать проект",
-            url="https://yoomoney.ru/quickpay/fundraise/button?billNumber=18FCROFC1QD.250217&"
+            url="https://yoomoney.ru/to/4100116398885153"
         )]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -60,9 +60,10 @@ async def handle_file(update, context):
             await update.message.reply_text("Ошибка: в файле не найден ключ 'url'.")
             return
         
+        # Если referrer не указан, используем домен из url
         if not referer:
-            await update.message.reply_text("Ошибка: в файле не найден ключ 'referrer'.")
-            return
+            parsed_url = urlparse(video_url)
+            referer = f"{parsed_url.scheme}://{parsed_url.netloc}"
         
         # Генерируем команду
         command = (
